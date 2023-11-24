@@ -18,7 +18,6 @@ import os
 from tqdm import tqdm
 import sys
 import errno
-import logging
 
 from common.camera import *
 from common.model_poseformer import *
@@ -30,8 +29,6 @@ from common.utils import *
 
 
 args = parse_args()
-log =  logging.getLogger()
-
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = ''.join(args.gpu)
