@@ -52,7 +52,7 @@ elif args.dataset.startswith('custom'):
 else:
     raise KeyError('Invalid dataset')
 
-print('Preparing data...', flush=True)
+print('Preparing data..go.', flush=True)
 for subject in dataset.subjects():
     for action in dataset[subject].keys():
         anim = dataset[subject][action]
@@ -392,21 +392,6 @@ if not args.evaluate:
         if not os.path.exists(args.checkpoint):
             os.mkdir(args.checkpoint)
 
-        # Save checkpoint if necessary
-        if epoch + 1 % args.checkpoint_frequency == 0:
-            chk_path = os.path.join(args.checkpoint, 'last_epoch.bin'.format(epoch + 1))
-            print('Saving checkpoint to', chk_path, flush=True)
-
-            torch.save({
-                'epoch': epoch + 1,
-                'lr': lr,
-                'random_state': train_generator.random_state(),
-                'optimizer': optimizer.state_dict(),
-                'model_pos': model_pos_train.state_dict(),
-                'min_loss': min_loss,
-                'wandb_id': wandb_id
-            }, chk_path)
-
         #### save best checkpoint
         best_chk_path = os.path.join(args.checkpoint, 'best_epoch.bin'.format(epoch + 1))
         if losses_3d_valid[-1] * 1000 < min_loss:
@@ -421,6 +406,19 @@ if not args.evaluate:
                 'min_loss': min_loss,
                 'wandb_id': wandb_id
             }, best_chk_path)
+        ## save last checkpoint
+        last_chk_path = os.path.join(args.checkpoint, 'last_epoch.bin'.format(epoch + 1))
+        print('Saving checkpoint to', last_chk_path, flush=True)
+
+        torch.save({
+            'epoch': epoch + 1,
+            'lr': lr,
+            'random_state': train_generator.random_state(),
+            'optimizer': optimizer.state_dict(),
+            'model_pos': model_pos_train.state_dict(),
+            'min_loss': min_loss,
+            'wandb_id': wandb_id
+        }, last_chk_path)
 
         # Save training curves after every epoch, as .png images (if requested)
         if args.export_training_curves and epoch + 1 > 3:
@@ -442,7 +440,10 @@ if not args.evaluate:
             plt.savefig(os.path.join(args.checkpoint, 'loss_3d.png'))
 
             plt.close('all')
-
+    artifact = wandb.Artifact(f'model', type='model')
+    artifact.add_file(last_chk_path)
+    artifact.add_file(best_chk_path)
+    wandb.log_artifact(artifact)
 
 # Evaluate
 def evaluate(test_generator, action=None, return_predictions=False, use_trajectory_model=False):
