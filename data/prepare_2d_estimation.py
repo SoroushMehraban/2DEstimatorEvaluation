@@ -106,7 +106,11 @@ def main():
                     raise Exception(f'There is a None in subject "{subject}" action "{action}"')
 
     print('Saving...')
-    np.savez_compressed(f"data_2d_h36m_{args.detector}", positions_2d=output)
+    metadata = {
+        'num_joints': 17,
+        'keypoints_symmetry': [[4, 5, 6, 11, 12, 13], [1, 2, 3, 14, 15, 16]]
+    }
+    np.savez_compressed(f"data_2d_h36m_{args.detector}", positions_2d=output, metadata=metadata)
     print('Done.')
 
 if __name__ == "__main__":
