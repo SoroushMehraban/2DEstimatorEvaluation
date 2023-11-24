@@ -64,6 +64,10 @@ def parse_args():
                         help='disable bone length term in semi-supervised settings')
     parser.add_argument('--no-proj', action='store_true', help='disable projection for semi-supervised setting')
     
+    # LOG
+    parser.add_argument('--wandb-id', type=str)
+    parser.add_argument('--wandb-name', type=str)
+
     # Visualization
     parser.add_argument('--viz-subject', type=str, metavar='STR', help='subject to render')
     parser.add_argument('--viz-action', type=str, metavar='STR', help='action to render')

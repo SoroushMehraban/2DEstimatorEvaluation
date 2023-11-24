@@ -6,6 +6,7 @@
 # Modified by Qitao Zhao (qitaozhao@mail.sdu.edu.cn)
 
 import numpy as np
+import wandb
 
 from common.arguments import parse_args
 import torch
@@ -17,15 +18,9 @@ import os
 from tqdm import tqdm
 import sys
 import errno
-import math
 import logging
 
-from einops import rearrange, repeat
-from copy import deepcopy
-
 from common.camera import *
-import collections
-
 from common.model_poseformer import *
 
 from common.loss import *
@@ -257,7 +252,7 @@ if not args.evaluate:
                                        kps_left=kps_left, kps_right=kps_right, joints_left=joints_left, joints_right=joints_right)
     print('INFO: Training on {} frames'.format(train_generator.num_frames()), flush=True)
     if args.resume:
-        epoch = checkpoint['epoch']
+        start_epoch = checkpoint['epoch']
         if 'optimizer' in checkpoint and checkpoint['optimizer'] is not None:
             optimizer.load_state_dict(checkpoint['optimizer'])
             train_generator.set_random_state(checkpoint['random_state'])
@@ -265,11 +260,25 @@ if not args.evaluate:
             print('WARNING: this checkpoint does not contain an optimizer state. The optimizer will be reinitialized.', flush=True)
 
         lr = checkpoint['lr']
+        min_loss = checkpoint['min_loss']
+        wandb_id = args.wandb_id if args.wandb_id is not None else checkpoint['wandb_id']
+
+        wandb.init(id=wandb_id,
+                    project='CSC2529-Course-Project',
+                    resume="must",
+                    settings=wandb.Settings(start_method='fork'))
+    else:
+        wandb_id = wandb.util.generate_id()
+        wandb.init(id=wandb_id,
+                    name=args.wandb_name,
+                    project='CSC2529-Course-Project',
+                    settings=wandb.Settings(start_method='fork'))
+        wandb.config.update(args)
 
     print('** Note: reported losses are averaged over all frames.', flush=True)
     print('** The final evaluation will be carried out after the last training epoch.', flush=True)
 
-    for epoch in tqdm(range(start_epoch, args.epochs)):
+    for epoch in range(start_epoch, args.epochs):
         start_time = time()
         epoch_loss_3d_train = 0
         epoch_loss_traj_train = 0
@@ -278,7 +287,7 @@ if not args.evaluate:
         N_semi = 0
         model_pos_train.train()
 
-        for _, batch_3d, batch_2d in train_generator.next_epoch():
+        for _, batch_3d, batch_2d in tqdm(train_generator.next_epoch()):
             inputs_3d = torch.from_numpy(batch_3d.astype('float32')) # [512, 1, 17, 3]
             inputs_2d = torch.from_numpy(batch_2d.astype('float32')) # [512, 3, 17, 2]
 
@@ -317,7 +326,7 @@ if not args.evaluate:
             N = 0
             if not args.no_eval:
                 # Evaluate on test set
-                for _, batch, batch_2d in test_generator.next_epoch():
+                for _, batch, batch_2d in tqdm(test_generator.next_epoch()):
                     inputs_3d = torch.from_numpy(batch.astype('float32')) # [1, 2356, 17, 3]
                     inputs_2d = torch.from_numpy(batch_2d.astype('float32')) # [1, 2358, 17, 2]
 
@@ -383,7 +392,7 @@ if not args.evaluate:
 
         # Save checkpoint if necessary
         if epoch + 1 % args.checkpoint_frequency == 0:
-            chk_path = os.path.join(args.checkpoint, 'epoch_{}.bin'.format(epoch + 1))
+            chk_path = os.path.join(args.checkpoint, 'last_epoch.bin'.format(epoch + 1))
             print('Saving checkpoint to', chk_path, flush=True)
 
             torch.save({
@@ -392,6 +401,8 @@ if not args.evaluate:
                 'random_state': train_generator.random_state(),
                 'optimizer': optimizer.state_dict(),
                 'model_pos': model_pos_train.state_dict(),
+                'min_loss': min_loss,
+                'wandb_id': wandb_id
             }, chk_path)
 
         #### save best checkpoint
@@ -405,6 +416,8 @@ if not args.evaluate:
                 'random_state': train_generator.random_state(),
                 'optimizer': optimizer.state_dict(),
                 'model_pos': model_pos_train.state_dict(),
+                'min_loss': min_loss,
+                'wandb_id': wandb_id
             }, best_chk_path)
 
         # Save training curves after every epoch, as .png images (if requested)
