@@ -381,6 +381,11 @@ if not args.evaluate:
                 lr,
                 losses_3d_train[-1] * 1000,
                 losses_3d_valid[-1] * 1000), flush=True)
+            wandb.log({
+                'lr': lr,
+                'loss/train': losses_3d_train[-1] * 1000,
+                'loss/valid': losses_3d_valid[-1] * 1000
+            }, step=epoch + 1)
 
         # Decay learning rate exponentially
         lr *= lr_decay
