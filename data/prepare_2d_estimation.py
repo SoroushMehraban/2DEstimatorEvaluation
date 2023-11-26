@@ -67,13 +67,20 @@ def main():
              output[subject][action] = [None, None, None, None]
         
         sequence = np.load(file, allow_pickle=True)
-        keypoints_2d = {}
-        box_conf = {}
-        for frame in sequence:
-            if frame['frame'] in keypoints_2d and frame['bbox'][-1] < box_conf[frame['frame']]:
-                continue
-            keypoints_2d[frame['frame']] = frame['keypoints'][None, ...]
-            box_conf[frame['frame']] = frame['bbox'][-1]
+        if args.detector == "transpose":
+            keypoints_2d = {}
+            sequence = sequence.item()
+            for frame in sequence:
+                if sequence[frame] is not None:
+                    keypoints_2d[frame] = sequence[frame]
+        else:
+            keypoints_2d = {}
+            box_conf = {}
+            for frame in sequence:
+                if frame['frame'] in keypoints_2d and frame['bbox'][-1] < box_conf[frame['frame']]:
+                    continue
+                keypoints_2d[frame['frame']] = frame['keypoints'][None, ...]
+                box_conf[frame['frame']] = frame['bbox'][-1]
         
 
         # Fill missing frames in middle if they're less than 20 frames
