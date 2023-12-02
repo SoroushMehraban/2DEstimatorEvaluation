@@ -1,122 +1,153 @@
-# PoseFormerV2: Exploring Frequency Domain for Efficient and Robust 3D Human Pose Estimation
+# Dataset
+We have used Human3.6M dataset for this project. For downloading it, please send a request to the [official website](http://vision.imar.ro/human3.6m/description.php) or download the preprocessed versions from [our google drive](https://drive.google.com/drive/folders/1K8LxjHjxyztfnbF5rckw_3gHce0eLlC8?usp=sharing). Short description of each files:
+- `data_2d_h36m_gt.npz`: 2D groundtruth data
+- `data_2d_h36m_vitpose.npz`: 2D data estimated by ViTPose-H
+- `data_2d_h36m_cpn_ft_h36m_dbb.npz`: 2D data estimated by CPN (finetuned on Human3.6M Dataset)
+- `data_2d_h36m_detectron_ft_h36m.npz`: 2D data estimated by Detectron (finetuned on Human3.6M Dataset)
+- `data_2d_h36m_moganet.npz`: 2D data estimated by MogaNet
+- `data_2d_h36m_pct.npz`: 2D data estimated by PCT
+- `data_2d_h36m_transpose.npz`: 2D data estimated by TransPose
+- `data_3d_h36m.npz`: 3D data
 
-This repo is the official implementation for **PoseFormerV2: Exploring Frequency Domain for Efficient and Robust 3D Human Pose Estimation**. The paper has been accepted to [CVPR 2023](https://cvpr2023.thecvf.com/).
+After downloading them, place them in `data` directory.
+ 
+## Preprocessing
+This is needed only in case you're using the official website CDF files provided by Human3.6M. In case of using our preprocessed data, you can ignore these steps.
+### Setup from original source (CDF files)
+Among the given files from official webiste of Human3.6M, download `Poses_D3_Positions_<SUBJECT>.tgz` files where `<SUBJECT>` is S1, S5, S6, S7, S8, S9, S11. Then extract them all and put them in a folder with an arbitrary name (let's call `cdf_files` here). Next, put the folder into this project under `data/preprocess` directory. It's expected to have following structure of files:
+```
+data/preprocess/cdf_files/S1/MyPoseFeatures/D3_Positions/Directions 1.cdf
+data/preprocess/cdf_files/S1/MyPoseFeatures/D3_Positions/Directions.cdf
+...
+```
+Finally run the preprocessing script:
+```
+cd data
+python prepare_data_h36m.py --cdf-dir cdf_files
+```
+After executing the script above, these files should be generated under `data` folder:
+- `data_2d_h36m_gt.npz`: This file contains all the 2D ground truths that can be achieved by projecting the 3D coordinates into 2D pixels by using the 4 camera intrinsic parameters used for recording the dataset. The way to read the data and its structure is as follows:
+```python
+data_2d = np.load(args.dir_2d, allow_pickle=True)['positions_2d'].item()
 
-[arXiv](https://arxiv.org/pdf/2303.17472.pdf) / [project page](https://qitaozhao.github.io/PoseFormerV2) / [video](https://www.youtube.com/watch?v=2xVNrGpGldM)
-
-| ![dance_1](images/demo_1.gif) | ![dance_2](images/demo_2.gif) |
-| ----------------------------- | ----------------------------- |
-
-### News
-
-[2023.06.16] Codes for in-the-wild video demos are released!
-
-[2023.05.31] We have a narrated video introduction. Please check [here](https://www.youtube.com/watch?v=2xVNrGpGldM).
-
-[2023.03.28] We build a [project page](https://qitaozhao.github.io/PoseFormerV2) where we place more descriptions and video demos.
-
-[2023.03.31] Our paper on [arXiv](https://arxiv.org/pdf/2303.17472.pdf) is ready!
-
-## Introduction
-
-PoseFormerV2 is built upon [PoseFormer](https://github.com/zczcwh/PoseFormer). It targets improving its efficiency in processing long input sequences and its robustness to noisy 2D joint detection via a frequency-domain joint sequence representation.
-
-**Abstract.** Recently, transformer-based methods have gained significant success in sequential 2D-to-3D lifting human pose estimation. As a pioneering work, PoseFormer captures spatial relations of human joints in each video frame and human dynamics across frames with cascaded transformer layers and has achieved impressive performance. However, in real scenarios, the performance of PoseFormer and its follow-ups is limited by two factors: (a) The length of the input joint sequence; (b) The quality of 2D joint detection. Existing methods typically apply self-attention to all frames of the input sequence, causing a huge computational burden when the frame number is increased to obtain advanced estimation accuracy, and they are not robust to noise naturally brought by the limited capability of 2D joint detectors. In this paper, we propose PoseFormerV2, which exploits a compact representation of lengthy skeleton sequences in the frequency domain to efficiently scale up the receptive field and boost robustness to noisy 2D joint detection. With minimum modifications to PoseFormer, the proposed method effectively fuses features both in the time domain and frequency domain, enjoying a better speed-accuracy trade-off than its precursor. Extensive experiments on two benchmark datasets (i.e., Human3.6M and MPI-INF-3DHP) demonstrate that the proposed approach significantly outperforms the original PoseFormer and other transformer-based variants.
-
-![PoseFormerV2](./images/framework.jpg)
-
-## Visualizations
-
-![PoseFormerV2](./images/visualization.jpg)
-
-![PoseFormerV2](./images/noise_comparison.jpg)
-
-## Cite PoseFormerV2
-
-If you find PoseFormerV2 useful in your research, please consider citing:
-
-```bibtex
-@InProceedings{Zhao_2023_CVPR,
-    author    = {Zhao, Qitao and Zheng, Ce and Liu, Mengyuan and Wang, Pichao and Chen, Chen},
-    title     = {PoseFormerV2: Exploring Frequency Domain for Efficient and Robust 3D Human Pose Estimation},
-    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-    month     = {June},
-    year      = {2023},
-    pages     = {8877-8886}
+"""
+Structure of data_2d:
+{
+    <SUBJECT>: {
+        <ACTION>: [<np.ndarray with shape(n_frames, 17, 2)>] x4
+    }
 }
+Where:
+      <SUBJECT> is one of the followings: ['S1', 'S5', 'S6', 'S7', 'S8', 'S9', 'S11']
+
+      <ACTION> is one of the followings: ['Directions 1', 'Directions', 'Discussion 1', 'Discussion', 'Eating 2', 'Eating', 'Greeting 1', 'Greeting', 'Phoning 1', 'Phoning', 'Posing 1', 'Posing', 'Purchases 1', 'Purchases', 'Sitting 1', 'Sitting 2', 'SittingDown 2', 'SittingDown', 'Smoking 1', 'Smoking', 'Photo 1', 'Photo', 'Waiting 1', 'Waiting', 'Walking 1', 'Walking', 'WalkDog 1', 'WalkDog', 'WalkTogether 1', 'WalkTogether']
+
+Note that each sequence of action is recorded using 4 different cameras positioned in 4 different corners of room. So we have sequences of 4 different views for the same performed action.
+"""
+```
+- `data_3d_h36m.npz`: This file contains the 3D coordinates. It's structured as follows:
+```python
+data_3d = np.load(args.dir_3d, allow_pickle=True)['positions_3d'].item()
+
+"""
+Structure of data_3d:
+{
+    <SUBJECT>: {
+        <ACTION>: [<np.ndarray with shape(n_frames, 32, 3)>] x4
+    }
+}
+
+Note that 3D coordinates are captured using 32 keypoints but 17 of them is used as a ground truth
+throughout the training. So later in run_poseformer.py the main 17 keypoints will be selected.
+"""
 ```
 
-## Environment
-
-The code is developed and tested under the following environment.
-
-- Python 3.8
-- PyTorch 1.11.0
-- CUDA 11.3
-
-```pip install -r requirements.txt```
-
-## Usage
-
-### Dataset preparation
-
-Please refer to [VideoPose3D](https://github.com/facebookresearch/VideoPose3D) to set up the Human3.6M dataset as follows:
-
+### Preparing the output of 2D pose estimations.
+It's expected that outputs of 2D estimator to be located in a directory with the following structure:
 ```
-code_root/
-└── data/
-	├── data_2d_h36m_gt.npz
-	├── data_2d_h36m_cpn_ft_h36m_dbb.npz
-	└── data_3d_h36m.npz
+.
+└── h36m_<DETECTOR NAME>/
+    ├── S1/
+    │   ├── <ACTION NAME>_<CAMERA ID>_pose_sequence.npy
+    │   └── ...
+    ├── S5/
+    │   └── ...
+    ├── S6/
+    │   └── ...
+    ├── S7/
+    │   └── ...
+    ├── S8/
+    │   └── ...
+    ├── S9/
+    │   └── ...
+    └── S11/
+        └── ...
 ```
-
-### Training
-
-You can train PoseFormerV2 on a single GPU with the following command:
-
-```bash
-python run_poseformer.py -g 0 -k cpn_ft_h36m_dbb -frame 27 -frame-kept 3 -coeff-kept 3 -c checkpoint/NAMED_PATH
+Where `<DETECTOR NAME>` is one of the 2D estimators like vitpose, pct, etc. By placing this folder inside `data/preprocess` folder, we can run the following script to preprocess the data:
 ```
+cd data
+python prepare_2d_estimation.py --detector <DETECTOR NAME>
+```
+The script aboves converts them from COCO format to Human3.6M format and stores them in the following structure:
+```python
+data_2d = np.load(args.dir_2d, allow_pickle=True)['positions_2d'].item()
 
-This example shows how to train PoseFormerV2 with 3 central frames and 3 DCT coefficients from a 27-frame sequence. You can set *frame-kept* and *coeff-kept* to arbitrary values (of course <= frame number) as you like :)
-
-### Evaluation
-
-We provide pre-trained models with different inputs:
-
-| Model        | Sequence Leng. |  f   |  n   | #Depth | Hidden Dim. | #MFLOPs | MPJPE (mm) |                           Download                           |
-| :----------- | :------------: | :--: | :--: | :----: | :---------: | :-----: | :--------: | :----------------------------------------------------------: |
-| PoseFormerV2 |       27       |  1   |  3   |   4    |     32      |  77.2   |    48.7    | [model](https://drive.google.com/file/d/14J0GYIzk_rGKSMxAPI2ydzX76QB70-g3/view?usp=share_link) |
-| /            |       27       |  3   |  3   |   4    |     32      |  117.3  |    47.9    | [model](https://drive.google.com/file/d/13oJz5-aBVvvPVFvTU_PrLG_m6kdbQkYs/view?usp=share_link) |
-| /            |       81       |  1   |  3   |   4    |     32      |  77.2   |    47.6    | [model](https://drive.google.com/file/d/14WgFFBsP0DtTq61XZWI9X2TzvFLCWEnd/view?usp=share_link) |
-| /            |       81       |  3   |  3   |   4    |     32      |  117.3  |    47.1    | [model](https://drive.google.com/file/d/13rXCkYnVnkbT-cz4XCo0QkUnUEYiSeoi/view?usp=share_link) |
-| /            |       81       |  9   |  9   |   4    |     32      |  351.7  |    46.0    | [model](https://drive.google.com/file/d/13wla4b5RgJGKX5zVehv4qKhCrQEFhfzG/view?usp=share_link) |
-| /            |      243       |  27  |  27  |   4    |     32      | 1054.8  |    45.2    | [model](https://drive.google.com/file/d/14SpqPyq9yiblCzTH5CorymKCUsXapmkg/view?usp=share_link) |
-
-You can evaluate PoseFormerV2 with prepared checkpoints as:
-
-```bash
-python run_poseformer.py -g 0 -k cpn_ft_h36m_dbb -frame 27 -frame-kept 3 -coeff-kept 3 -c checkpoint/NAMED_PATH --evaluate NAME_ckpt.bin
+"""
+Structure of data_2d:
+{
+    <SUBJECT>: {
+        <ACTION>: [<np.ndarray with shape(n_frames, 17, 2)>] x4
+    }
+}
+"""
 ```
 
-### Video Demo
-
-| ![skating](images/demo_3.gif) |
-| :---------------------------: |
-
-Our codes for in-the-wild video demos are adopted from [MHFormer](https://github.com/Vegetebird/MHFormer).
-
-First, you need to download the pretrained weights for YOLOv3 ([here](https://drive.google.com/file/d/1YgA9riqm0xG2j72qhONi5oyiAxc98Y1N/view?usp=sharing)), HRNet ([here](https://drive.google.com/file/d/1YLShFgDJt2Cs9goDw9BmR-UzFVgX3lc8/view?usp=sharing)) and put them in the './demo/lib/checkpoint' directory. Then, put your in-the-wild videos in the './demo/video' directory. 
-
-Note: make sure you have also downloaded the weights for PoseFormerV2! (the default path in the code is './checkpoint')
-
-Run the command below:
-
-```bash
-python demo/vis.py --video sample_video.mp4
+### Preparing merged dataset
+We have proposed 3 different merging strategies. The code to create the merged dataset can be executed as follows:
 ```
+cd data
+python merge.py --strategy <MERGING-STRATEGY>
+```
+Where `<MERGING-STRATEGY>` is one of these options:
+- **manual**: This option mainly uses ViTPose but replaces joints (2, 8, 10, 14) with PCT (Refer to the paper report to see the reason).
+- **average**: This strategy takes the average of PCT, MogaNet, and ViTPose for each frame.
+- **weighted_average**: This strategy takes the weighted average such that weights depend on the confidence scores.
 
-## Acknowledgment
+**Note**: For the manual one, `data_2d_h36m_vitpose.npz` and `data_2d_h36m_pct.npz` and for other two options, `data_2d_h36m_vitpose.npz`, `data_2d_h36m_pct.npz`, and `data_2d_h36m_moganet.npz` should be located in data directory.
 
-Our codes are mainly based on [PoseFormer](https://github.com/zczcwh/PoseFormer). We follow [MHFormer](https://github.com/Vegetebird/MHFormer) to prepare our in-the-wild video demos and visualizations. Many thanks to the authors!
+**Note**: For the weighted_average option, the keypoints should have confidence scores. So for generating keypoints using `prepare_2d_estimation.py`, you should also pass `--keep-conf` as argument (the output npz will have `_w_conf` at the end).
 
+## Visualization
+For dataset visualization, you need to have the following npz files in data directory:
+- **data_3d_h36m.npz**
+- **data_2d_h36m_gt.npz**
+- And one of the npz files from 2D estimations
+
+Then you can run the following code:
+```
+cd data
+
+python visualize.py --dir-2d <PATH TO THE 2D ESTIMATIONS> --subject <SUBJECT> --action <ACTION> --camera <CAMERA ID>
+```
+Where:
+ - `<PATH TO THE 2D ESTIMATIONS>`: By default it's set to ViTPose npz file.
+ - `<SUBJECt>`: By default it is set to `S1`. The available options are:
+ ```
+ ['S1', 'S5', 'S6', 'S7', 'S8', 'S9', 'S11']
+ ```
+ - `<ACTION>`: By default it is set to `Walking`. The available options are:
+ ```
+ ['Directions 1', 'Directions', 'Discussion 1', 'Discussion', 'Eating 2', 'Eating', 'Greeting 1', 'Greeting', 'Phoning 1', 'Phoning', 'Posing 1', 'Posing', 'Purchases 1', 'Purchases', 'Sitting 1', 'Sitting 2', 'SittingDown 2', 'SittingDown', 'Smoking 1', 'Smoking', 'Photo 1', 'Photo', 'Waiting 1', 'Waiting', 'Walking 1', 'Walking', 'WalkDog 1', 'WalkDog', 'WalkTogether 1', 'WalkTogether']
+ ```
+ - `<CAMERA>`: By default it is set to `55011271`. The available options are:
+ ```
+ ['54138969', '55011271', '58860488', '60457274']
+ ```
+
+ It usually takes some time to render the output file as they are usually some long videos (~1500 frames). Sample of one of the visualizations (trimmed):
+ <p><img src="figs/sample_data.gif" alt="" /></p>
+
+## Acknowledgement
+Our code refers to the following repositories:
+- [PoseformerV2](https://github.com/QitaoZhao/PoseFormerV2)
+- [VideoPose3D](https://github.com/facebookresearch/VideoPose3D/)
