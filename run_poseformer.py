@@ -15,7 +15,6 @@ import torch.nn as nn
 import torch.optim as optim
 import os
 from tqdm import tqdm
-import sys
 
 from common.camera import *
 from common.model_poseformer import *
@@ -25,7 +24,7 @@ from time import time
 from common.utils import *
 from common.h36m_dataset import Human36mDataset
 from common.data_utils import create_checkpoint_dir_if_not_exists, preprocess_3d_data, load_2d_data, \
-                              verify_2d_3d_matching, normalize_2d_data, fetch, \
+                              verify_2d_3d_matching, normalize_2d_data,\
                               init_train_generator, init_test_generator
 from common.model_utils import count_number_of_parameters
 
@@ -128,7 +127,7 @@ def evaluate(model_pos, test_generator, kps_left, kps_right, receptive_field,
 
 def main():
     args = parse_args()
-    create_checkpoint_dir_if_not_exists()
+    create_checkpoint_dir_if_not_exists(args.checkpoint)
 
     # Data 3D
     dataset_path = f'data/data_3d_h36m.npz'
@@ -137,7 +136,7 @@ def main():
     joints_left, joints_right = list(dataset_3d.skeleton().joints_left()), list(dataset_3d.skeleton().joints_right())
 
     # Data 2D
-    data_2d_path = f'data/data_2d_{args.keypoints}.npz'  # keypoints could be vitpose, pct, etc.
+    data_2d_path = f'data/data_2d_h36m_{args.keypoints}.npz'  # keypoints could be vitpose, pct, etc.
     keypoints_2d, kps_left, kps_right, num_joints = load_2d_data(data_2d_path)
     verify_2d_3d_matching(keypoints_2d, dataset_3d)
     normalize_2d_data(keypoints_2d, dataset_3d)
@@ -150,7 +149,7 @@ def main():
     pad = (receptive_field -1) // 2  # Padding on each side
 
     train_generator = init_train_generator(subjects_train, keypoints_2d, dataset_3d, pad,
-                                           kps_left, kps_right, joints_left, joints_right)
+                                           kps_left, kps_right, joints_left, joints_right, args)
     test_generator = init_test_generator(subjects_test, keypoints_2d, dataset_3d, pad,
                                          kps_left, kps_right, joints_left, joints_right)
     print(f'[INFO] Training on {train_generator.num_frames()} frames')
@@ -167,66 +166,89 @@ def main():
         model_pos = nn.DataParallel(model_pos)
         model_pos = model_pos.cuda()
 
-    # Learning
-    lr = args.learning_rate
-    optimizer = optim.AdamW(model_pos.parameters(), lr=lr, weight_decay=0.1)
-    lr_decay = args.lr_decay
-    losses_3d_train = []
-    losses_3d_valid = []
-
-    start_epoch = 0
-    min_loss = float('inf')
-
-    if args.resume:
-        chk_filename = os.path.join(args.checkpoint, args.resume if args.resume else args.evaluate)
+    if args.evaluate:
+        losses_3d_valid = []
+        chk_filename = os.path.join(args.checkpoint, args.evaluate)
         print(f'[INFO] Loading checkpoint from {chk_filename}')
         checkpoint = torch.load(chk_filename, map_location=lambda storage, loc: storage)
         model_pos.load_state_dict(checkpoint['model_pos'], strict=False)
-
-        start_epoch = checkpoint['epoch']
-        if 'optimizer' in checkpoint and checkpoint['optimizer'] is not None:
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            train_generator.set_random_state(checkpoint['random_state'])
-        else:
-            print('[WARNING] This checkpoint does not contain an optimizer state. The optimizer will be reinitialized.')
-
-        lr = checkpoint['lr']
-        min_loss = checkpoint['min_loss']
-        wandb_id = args.wandb_id if args.wandb_id is not None else checkpoint['wandb_id']
-
-        wandb.init(id=wandb_id,
-                    project='CSC2529-Course-Project',
-                    resume="must",
-                    settings=wandb.Settings(start_method='fork'))
-    else:
-        wandb_id = wandb.util.generate_id()
-        wandb.init(id=wandb_id,
-                    name=args.wandb_name,
-                    project='CSC2529-Course-Project',
-                    settings=wandb.Settings(start_method='fork'))
-        wandb.config.update(args)
-
-    for epoch in range(start_epoch, args.epochs):
-        train_one_epoch(model_pos, train_generator, optimizer, losses_3d_train)
         evaluate(model_pos, test_generator, kps_left, kps_right, receptive_field,
-                 joints_left, joints_right, losses_3d_valid)
-        print(f'[{epoch + 1}] lr {lr} 3d_train {losses_3d_train[-1] * 1000} 3d_valid {losses_3d_valid[-1] * 1000}')
-        wandb.log({
-            'lr': lr,
-            'loss/train': losses_3d_train[-1] * 1000,
-            'loss/valid': losses_3d_valid[-1] * 1000
-        }, step=epoch + 1)
+                    joints_left, joints_right, losses_3d_valid)
+        print(f'MPJPE on Validation data: {losses_3d_valid[-1] * 1000}')
+    else:
+        # Learning
+        lr = args.learning_rate
+        optimizer = optim.AdamW(model_pos.parameters(), lr=lr, weight_decay=0.1)
+        lr_decay = args.lr_decay
+        losses_3d_train = []
+        losses_3d_valid = []
 
-        # Decay learning rate exponentially
-        lr *= lr_decay
-        for param_group in optimizer.param_groups:
-            param_group['lr'] *= lr_decay
+        start_epoch = 0
+        min_loss = float('inf')
 
-        #### save best checkpoint
-        best_chk_path = os.path.join(args.checkpoint, 'best_epoch.bin')
-        if losses_3d_valid[-1] * 1000 < min_loss:
-            min_loss = losses_3d_valid[-1] * 1000
-            print("save best checkpoint", flush=True)
+        if args.resume:
+            chk_filename = os.path.join(args.checkpoint, args.resume)
+            print(f'[INFO] Loading checkpoint from {chk_filename}')
+            checkpoint = torch.load(chk_filename, map_location=lambda storage, loc: storage)
+            model_pos.load_state_dict(checkpoint['model_pos'], strict=False)
+
+            start_epoch = checkpoint['epoch']
+            if 'optimizer' in checkpoint and checkpoint['optimizer'] is not None:
+                optimizer.load_state_dict(checkpoint['optimizer'])
+                train_generator.set_random_state(checkpoint['random_state'])
+            else:
+                print('[WARNING] This checkpoint does not contain an optimizer state. The optimizer will be reinitialized.')
+
+            lr = checkpoint['lr']
+            min_loss = checkpoint['min_loss']
+            wandb_id = args.wandb_id if args.wandb_id is not None else checkpoint['wandb_id']
+
+            wandb.init(id=wandb_id,
+                        project='CSC2529-Course-Project',
+                        resume="must",
+                        settings=wandb.Settings(start_method='fork'))
+        else:
+            wandb_id = wandb.util.generate_id()
+            wandb.init(id=wandb_id,
+                        name=args.wandb_name,
+                        project='CSC2529-Course-Project',
+                        settings=wandb.Settings(start_method='fork'))
+            wandb.config.update(args)
+
+        for epoch in range(start_epoch, args.epochs):
+            train_one_epoch(model_pos, train_generator, optimizer, losses_3d_train)
+            evaluate(model_pos, test_generator, kps_left, kps_right, receptive_field,
+                    joints_left, joints_right, losses_3d_valid)
+            print(f'[{epoch + 1}] lr {lr} 3d_train {losses_3d_train[-1] * 1000} 3d_valid {losses_3d_valid[-1] * 1000}')
+            wandb.log({
+                'lr': lr,
+                'loss/train': losses_3d_train[-1] * 1000,
+                'loss/valid': losses_3d_valid[-1] * 1000
+            }, step=epoch + 1)
+
+            # Decay learning rate exponentially
+            lr *= lr_decay
+            for param_group in optimizer.param_groups:
+                param_group['lr'] *= lr_decay
+
+            #### save best checkpoint
+            best_chk_path = os.path.join(args.checkpoint, 'best_epoch.bin')
+            if losses_3d_valid[-1] * 1000 < min_loss:
+                min_loss = losses_3d_valid[-1] * 1000
+                print("save best checkpoint", flush=True)
+                torch.save({
+                    'epoch': epoch + 1,
+                    'lr': lr,
+                    'random_state': train_generator.random_state(),
+                    'optimizer': optimizer.state_dict(),
+                    'model_pos': model_pos.state_dict(),
+                    'min_loss': min_loss,
+                    'wandb_id': wandb_id
+                }, best_chk_path)
+            ## save last checkpoint
+            last_chk_path = os.path.join(args.checkpoint, 'last_epoch.bin')
+            print('Saving checkpoint to', last_chk_path, flush=True)
+
             torch.save({
                 'epoch': epoch + 1,
                 'lr': lr,
@@ -235,25 +257,12 @@ def main():
                 'model_pos': model_pos.state_dict(),
                 'min_loss': min_loss,
                 'wandb_id': wandb_id
-            }, best_chk_path)
-        ## save last checkpoint
-        last_chk_path = os.path.join(args.checkpoint, 'last_epoch.bin')
-        print('Saving checkpoint to', last_chk_path, flush=True)
-
-        torch.save({
-            'epoch': epoch + 1,
-            'lr': lr,
-            'random_state': train_generator.random_state(),
-            'optimizer': optimizer.state_dict(),
-            'model_pos': model_pos.state_dict(),
-            'min_loss': min_loss,
-            'wandb_id': wandb_id
-        }, last_chk_path)
-    
-    artifact = wandb.Artifact(f'model', type='model')
-    artifact.add_file(last_chk_path)
-    artifact.add_file(best_chk_path)
-    wandb.log_artifact(artifact)
+            }, last_chk_path)
+        
+        artifact = wandb.Artifact(f'model', type='model')
+        artifact.add_file(last_chk_path)
+        artifact.add_file(best_chk_path)
+        wandb.log_artifact(artifact)
 
 
 
