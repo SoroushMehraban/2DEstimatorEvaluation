@@ -146,6 +146,7 @@ Where:
 
  It usually takes some time to render the output file as they are usually some long videos (~1500 frames). Sample of one of the visualizations (trimmed):
  <p><img src="figs/sample_data.gif" alt="" /></p>
+ In the visualization above, 2D estimation belongs to ViTPose.
 
 ## Acknowledgement
 Our code refers to the following repositories:
