@@ -8,6 +8,7 @@ from tqdm import tqdm
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--detector', default='vitpose', type=str, choices=['vitpose', 'pct', 'moganet', 'transpose'])
+    parser.add_argument('--keep-conf', action='store_true')
     args = parser.parse_args()
     return args
 
@@ -96,7 +97,10 @@ def main():
         except KeyError as e:
              last_valid_frame = e.args[0] - 1
              keypoints_2d = np.concatenate([keypoints_2d[frame] for frame in range(last_valid_frame + 1)])
-        keypoints_2d_converted = coco2h36m(keypoints_2d[..., :2])
+        if args.keep_conf:
+            keypoints_2d_converted = coco2h36m(keypoints_2d)
+        else:
+            keypoints_2d_converted = coco2h36m(keypoints_2d[..., :2])
 
         try:
             cam_index = cam_to_idx[camera_id]
@@ -117,7 +121,8 @@ def main():
         'num_joints': 17,
         'keypoints_symmetry': [[4, 5, 6, 11, 12, 13], [1, 2, 3, 14, 15, 16]]
     }
-    np.savez_compressed(f"data_2d_h36m_{args.detector}", positions_2d=output, metadata=metadata)
+    conf_name = "_w_conf" if args.keep_conf else ""
+    np.savez_compressed(f"data_2d_h36m_{args.detector}{conf_name}", positions_2d=output, metadata=metadata)
     print('Done.')
 
 if __name__ == "__main__":
