@@ -41,9 +41,9 @@ def parse_args():
     parser.add_argument('-lrd', '--lr-decay', default=0.99, type=float, metavar='LR', help='learning rate decay per epoch')
     parser.add_argument('-no-da', '--no-data-augmentation', dest='data_augmentation', action='store_false',
                         help='disable train-time flipping')
-    parser.add_argument('-frame', '--number-of-frames', default='81', type=int, metavar='N',
+    parser.add_argument('-frame', '--number-of-frames', default='27', type=int, metavar='N',
                         help='how many frames used as input')
-    parser.add_argument('-frame-kept', '--number-of-kept-frames', default='27', type=int, metavar='N',
+    parser.add_argument('-frame-kept', '--number-of-kept-frames', default='3', type=int, metavar='N',
                         help='how many frames are kept')
     parser.add_argument('-coeff-kept', '--number-of-kept-coeffs', type=int, metavar='N', help='how many coefficients are kept')
     parser.add_argument('--depth', default=4, type=int, metavar='N', help='number of transformer blocks')  
