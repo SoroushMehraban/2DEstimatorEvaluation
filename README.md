@@ -148,6 +148,31 @@ Where:
  <p><img src="figs/sample_data.gif" alt="" /></p>
  In the visualization above, 2D estimation belongs to ViTPose.
 
+# Training and evaluation
+Our model training and evaluation is based on a refactoed implementation of PoseFormerV2. We always use the variant that covers 27 number of input frames.
+## Training
+You can train the model by running the `run_poseformer.py`. Sample for ViTPose is as follows:
+```
+python run_poseformer.py -g 0 -frame 27 -frame-kept 3 -coeff-kept 3 -c checkpoint/vitpose \
+                         --wandb-name poseformerv2-vitpose --epochs 200 --keypoints vitpose
+```
+The script above stores the checkpoints in `checkpoint/vitpose` directory. It trains for 200 epochs and because of `--keypoints vitpose`, it reads the npz file that belongs to vitpose (basically in `data_2d_h36m_vitpose.npz` file name it cares about whatever comes after last underscore).
+
+Also in case that you want to resume training if it stops during training for some reason, you can do the following:
+```
+python run_poseformer.py -g 0 -frame 27 -frame-kept 3 -coeff-kept 3 -c checkpoint/vitpose \
+                         --wandb-name poseformerv2-vitpose --epochs 200 --keypoints vitpose --resume last_epoch.bin \
+                         --wandb-id 6mr5twid
+```
+Where you have to find the `wandb-id` from the wandb run id. After the end of training, the script above uplodas the model weights into wandb server for future usage.
+
+## Evaluation
+If you downloaded the pretrained weights and want to confirm it works properly, you can run the evaluation code as follows:
+```
+python3 run_poseformer.py --evaluate poseformerv2-vitpose.bin --keypoints vitpose
+```
+The script above reads the weights from `poseformerv2-vitpose.bin` file that has to be placed in `checkpoint` directory (otherwise specify with `--checkpoint`) and reports MPJPE on validation data.
+
 ## Acknowledgement
 Our code refers to the following repositories:
 - [PoseformerV2](https://github.com/QitaoZhao/PoseFormerV2)
