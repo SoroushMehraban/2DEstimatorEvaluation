@@ -3,7 +3,6 @@ Here we put the code we used for estimation of 2D sequences of Human3.6M using T
 ## usage
 Run the following command:
 ```
-cd 2DEstimators/MogaNet/pose_estimation/demo/
 python transpose.py \
        --video-path <PATH-TO-INPUT-VIDEOS> \
        --out-pose-root <PATH-TO-OUTPUT-VIDEOS>
