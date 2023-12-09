@@ -103,6 +103,8 @@ Structure of data_2d:
 ```
 
 ### Preparing merged dataset
+**Note:** The merged estimations are also located in [our google drive](https://drive.google.com/drive/u/2/folders/1K8LxjHjxyztfnbF5rckw_3gHce0eLlC8). Instructions below is just for the case of reproducing the results.
+
 We have proposed 3 different merging strategies. The code to create the merged dataset can be executed as follows:
 ```
 cd data
@@ -167,6 +169,8 @@ python run_poseformer.py -g 0 -frame 27 -frame-kept 3 -coeff-kept 3 -c checkpoin
 Where you have to find the `wandb-id` from the wandb run id. After the end of training, the script above uplodas the model weights into wandb server for future usage.
 
 ## Evaluation
+The pretrained weights are located at [here](https://drive.google.com/drive/u/2/folders/1ET2y9MpanDvsrOceuox2toWwIZNTdlKw)
+
 If you downloaded the pretrained weights and want to confirm it works properly, you can run the evaluation code as follows:
 ```
 python3 run_poseformer.py --evaluate poseformerv2-vitpose.bin --keypoints vitpose
